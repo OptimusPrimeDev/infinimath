@@ -1,0 +1,31 @@
+[workspace]
+members = [
+    "imc",
+    "subchains",
+    "common",
+]
+
+[package]
+name = "infinimath"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+p256 = { version = "0.14.0-pre.2", features = ["serde"] }
+sha3 = "0.10.0"
+sha2 = "0.10.6"
+ecdsa = { version = "0.14.8", features = ["serde"] }
+bigdecimal = { version = "0.2", features = ["serde"] }
+serde_json = "1.0"
+serde = { version = "1.0", features = ["derive"] }
+serde_derive = "1.0"
+rand_core = "0.6.3"
+rand = "0.8"
+imc = { path = "imc" }
+subchains = { path = "subchains" }
+common = { path = "common" }
+num = "0.4"
+num-traits = "0.2"
+
+
+
