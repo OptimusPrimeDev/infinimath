@@ -9,6 +9,7 @@ members = [
 name = "infinimath"
 version = "0.1.0"
 edition = "2021"
+default-run = "infinimath"
 
 [dependencies]
 p256 = { version = "0.14.0-pre.2", features = ["serde"] }
@@ -26,6 +27,18 @@ subchains = { path = "subchains" }
 common = { path = "common" }
 num = "0.4"
 num-traits = "0.2"
+chrono = "0.4"
+num-bigint = { version = "0.4", features = ["rand"] }
 
 
+[[bin]]
+name = "infinimath"
+path = "src/main.rs"
 
+[[bin]]
+name = "test_miners"
+path = "src/bin/test_miners.rs"
+
+[[bin]]
+name = "test_smart_contracts"
+path = "src/bin/test_smart_contracts.rs"

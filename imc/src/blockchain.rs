@@ -2,7 +2,7 @@ use sha3::{Sha3_256, Digest as Sha3Digest};
 use sha2::Sha256;
 use p256::ecdsa::{SigningKey, VerifyingKey};
 use p256::ecdsa::signature::{Signer, Verifier};
-use p256::FieldBytes; // Ensure this import is present
+use p256::FieldBytes; 
 use common::wallet::{OptionalSerializableSignature, SerializableSignature};
 use std::collections::HashMap;
 use std::time::{SystemTime, UNIX_EPOCH, Duration};
@@ -61,6 +61,51 @@ impl Transaction {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SmartContract {
+    pub id: String,
+    pub creator: String,
+    pub code: String, // The code of the smart contract
+    pub state: HashMap<String, String>, // State variables of the contract
+}
+
+impl SmartContract {
+    pub fn new(id: String, creator: String, code: String) -> Self {
+        SmartContract {
+            id,
+            creator,
+            code,
+            state: HashMap::new(),
+        }
+    }
+
+    pub fn execute(&mut self, function: &str, params: HashMap<String, String>) -> Result<String, String> {
+        // Placeholder for actual execution logic
+        match function {
+            "set" => {
+                if let Some(key) = params.get("key") {
+                    if let Some(value) = params.get("value") {
+                        self.state.insert(key.clone(), value.clone());
+                        return Ok(format!("Set state '{}' to '{}'", key, value));
+                    }
+                }
+                Err("Invalid parameters for 'set' function".to_string())
+            }
+            "get" => {
+                if let Some(key) = params.get("key") {
+                    if let Some(value) = self.state.get(key) {
+                        return Ok(format!("State value for key '{}': '{}'", key, value));
+                    } else {
+                        return Err(format!("Key '{}' not found in state", key));
+                    }
+                }
+                Err("Invalid parameters for 'get' function".to_string())
+            }
+            _ => Err(format!("Function '{}' not recognized", function)),
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct Blockchain {
     pub blocks: Vec<Block>,
@@ -73,12 +118,13 @@ pub struct Blockchain {
     pub public_keys: HashMap<String, VerifyingKey>,
     pub target_block_time: Duration,
     pub difficulty: usize,
+    pub smart_contracts: HashMap<String, SmartContract>,
 }
 
 impl Blockchain {
     pub fn new() -> Self {
         let target_block_time = Duration::from_secs(450); // 7.5 minutes
-        let initial_difficulty = 2; // Initial difficulty level
+        let initial_difficulty = 5; // Set a higher initial difficulty
 
         let mut balances = HashMap::new();
         balances.insert("System".to_string(), BigDecimal::from_str("1000000000000").unwrap());
@@ -95,10 +141,11 @@ impl Blockchain {
             public_keys: HashMap::new(),
             target_block_time,
             difficulty: initial_difficulty,
+            smart_contracts: HashMap::new(), // Initialize smart contracts storage
         };
 
         let mut genesis_block = Block::new(0, 0, "0".to_string(), "Genesis Block".to_string(), 0);
-        genesis_block.mine_block(initial_difficulty);
+        genesis_block.hash = genesis_block.calculate_hash(); // Calculate hash for genesis block without mining
         blockchain.blocks.push(genesis_block);
 
         blockchain
@@ -159,16 +206,16 @@ impl Blockchain {
 
     fn adjust_difficulty(&mut self, start_time: SystemTime, end_time: SystemTime) {
         let block_time = end_time.duration_since(start_time).unwrap();
-        let adjustment_factor = 0.1; // Adjust this factor to control sensitivity
-
+        let adjustment_factor = 0.015; // Adjust this factor to 1.5%
+    
         if block_time < self.target_block_time {
-            // Decrease difficulty if block time is less than target
+            // Increase difficulty if block time is less than target
             self.difficulty = (self.difficulty as f64 * (1.0 + adjustment_factor)).ceil() as usize;
         } else if block_time > self.target_block_time {
-            // Increase difficulty if block time is greater than target
+            // Decrease difficulty if block time is greater than target
             self.difficulty = (self.difficulty as f64 * (1.0 - adjustment_factor)).max(1.0) as usize;
         }
-
+    
         println!("Adjusted difficulty to: {}", self.difficulty);
     }
 
@@ -178,13 +225,13 @@ impl Blockchain {
             return;
         }
 
-        // Winner gets 70% of the mining reward
-        let winner_reward = &self.mining_reward * BigDecimal::from_str("0.7").unwrap();
+        // Winner gets 30% of the mining reward
+        let winner_reward = &self.mining_reward * BigDecimal::from_str("0.3").unwrap();
         let winner_balance = self.balances.entry(winner.clone()).or_insert(BigDecimal::zero());
         *winner_balance += winner_reward;
 
-        // Everyone, including the winner, gets a share of the remaining 30% based on their contributions
-        let remaining_reward = &self.mining_reward * BigDecimal::from_str("0.3").unwrap();
+        // Everyone, including the winner, gets a share of the remaining 70% based on their contributions
+        let remaining_reward = &self.mining_reward * BigDecimal::from_str("0.7").unwrap();
         for (miner, contribution) in &self.miner_contributions {
             let reward = &remaining_reward * BigDecimal::from(*contribution as i64) / BigDecimal::from(total_contributions as i64);
             let miner_balance = self.balances.entry(miner.clone()).or_insert(BigDecimal::zero());
@@ -262,6 +309,24 @@ impl Blockchain {
         let mut key_data = FieldBytes::default();
         file.read_exact(&mut key_data)?;
         Ok(key_data)
+    }
+
+    pub fn create_smart_contract(&mut self, id: String, creator: String, code: String) -> Result<String, String> {
+        if self.smart_contracts.contains_key(&id) {
+            return Err("Smart contract with this ID already exists".to_string());
+        }
+
+        let contract = SmartContract::new(id.clone(), creator, code);
+        self.smart_contracts.insert(id.clone(), contract);
+        Ok(format!("Smart contract '{}' created successfully", id))
+    }
+
+    pub fn execute_smart_contract(&mut self, id: &str, function: &str, params: HashMap<String, String>) -> Result<String, String> {
+        if let Some(contract) = self.smart_contracts.get_mut(id) {
+            contract.execute(function, params)
+        } else {
+            Err("Smart contract not found".to_string())
+        }
     }
 }
 
